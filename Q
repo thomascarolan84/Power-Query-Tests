@@ -1,0 +1,43 @@
+let MasterCurves =
+    Source = Table.NestedJoin(SOVCurrent, {"WBS"}, MergeCURVES, {"WBS Element"}, "MergeCURVES", JoinKind.FullOuter),
+    #"Expanded MergeCURVES" = Table.ExpandTableColumn(Source, "MergeCURVES", {"cost.id", "scenarioid", "WBS Element Description", "WBS Element", "% ACTUAL.M", "% SCHEDULE.M", "% SCHED.M", "% BL PLAN.M", "DATE.Aligned", "DATE", "% ACTUAL.c", "% SCHED.c", "% BL PLAN.c", "% PREDICT.c", "proj id", "SOV_Table.WORK This Period", "SOV_Table.Total Work JTD", "SOV_Table.% Comp", "SOV_Table.BALANCE", "SOV_Table.SAP WBS "}, {"MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.DATE.Aligned", "MC.DATE", "MC.% ACTUAL.c", "MC.% SCHED.c", "MC.% BL PLAN.c", "MC.% PREDICT.c", "MC.proj id", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.Total Work JTD", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.SOV_Table.SAP WBS "}),
+    #"Sorted Rows" = Table.Sort(#"Expanded MergeCURVES",{{"MC.cost.id", Order.Ascending}}),
+    #"Added Custom" = Table.AddColumn(#"Sorted Rows", "Custom", each [#"MC.% BL PLAN.M"] * [Curr SOV]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Added Custom",{{"Custom", Currency.Type}}),
+    #"Reordered Columns" = Table.ReorderColumns(#"Changed Type",{"Bid Pack", "WBS", "Scenario id", "Pay App#", "WBS Desription", "SOV", "Allow & Cont Cost", "Prime COs", "Curr SOV", "From Prev", "WORK This Period", "Stored Mat", "Total Work JTD", "% Comp", "BALANCE", "RETAINAGE", "MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.DATE.Aligned", "MC.DATE", "MC.% ACTUAL.c", "MC.% SCHED.c", "MC.% BL PLAN.c", "MC.% PREDICT.c", "MC.proj id", "Custom", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.Total Work JTD", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.SOV_Table.SAP WBS "}),
+    #"Renamed Columns" = Table.RenameColumns(#"Reordered Columns",{{"Custom", "MC.$ BL PLAN.M"}}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Renamed Columns",{{"MC.$ BL PLAN.M", type number}}),
+    #"Added Custom1" = Table.AddColumn(#"Changed Type1", "MC. $ SCHED.M", each [Curr SOV] * [#"MC.% SCHEDULE.M"]),
+    #"Changed Type2" = Table.TransformColumnTypes(#"Added Custom1",{{"MC. $ SCHED.M", type number}}),
+    #"Renamed Columns1" = Table.RenameColumns(#"Changed Type2",{{"MC. $ SCHED.M", "$ SCHED.M"}, {"MC.$ BL PLAN.M", "$ BL PLAN.M"}}),
+    #"Added Custom2" = Table.AddColumn(#"Renamed Columns1", "Custom", each [Curr SOV] * [#"MC.% SCHEDULE.M"]),
+    #"Renamed Columns2" = Table.RenameColumns(#"Added Custom2",{{"Custom", "$ SCHEDULE.M"}}),
+    #"Changed Type3" = Table.TransformColumnTypes(#"Renamed Columns2",{{"$ SCHEDULE.M", type number}}),
+    #"Added Custom3" = Table.AddColumn(#"Changed Type3", "$ BL PLAN.c", each [Curr SOV] * [#"MC.% BL PLAN.c"]),
+    #"Added Custom4" = Table.AddColumn(#"Added Custom3", "$ SCHED.c", each [Curr SOV] *  [#"MC.% SCHED.c"]),
+    #"Changed Type4" = Table.TransformColumnTypes(#"Added Custom4",{{"$ SCHED.c", type number}}),
+    #"Added Custom5" = Table.AddColumn(#"Changed Type4", "$ PREDICT.c", each [Curr SOV] * [#"MC.% PREDICT.c"]),
+    #"Added Custom6" = Table.AddColumn(#"Changed Type4", "Cumulative Actual Cost", each List.Sum(List.FirstN(List.Reverse(Table.Column([MC.SOV_Table], "Total Work JTD")), List.PositionOf(List.Reverse(Table.Column([MC.SOV_Table], "Total Work JTD")), each _ <> null))) +_[MC.SOV_Table.WORK This Period]),
+    #"Added Custom7" = Table.AddColumn(#"Added Custom6", "Cumulative Planned Cost", each List.Sum(List.FirstN(List.Reverse([#"MC.$ BL PLAN.c"]), List.PositionOf(List.Reverse([#"MC.$ BL PLAN.c"]), each _ <> null)))),
+    #"Added Custom8" = Table.AddColumn(#"Added Custom7", "Cumulative Scheduled Cost", each List.Sum(List.FirstN(List.Reverse([#"$ SCHED.c"]), List.PositionOf(List.Reverse([#"$ SCHED.c"]), each _ <> null)))),
+
+    #"Added Custom9" = Table.AddColumn(#"Added Custom8", "Blend Factor", each if [Cumulative Actual Cost] = 0 then 0 else 1 ),
+
+    #"Added Custom10" = Table.AddColumn(#"Added Custom9", "Blended Cost", each if [MC.DATE.Aligned] > Date.From(DateTime.LocalNow()) then [#"$ SCHED.c"] * [Blend Factor] else [MC.SOV_Table][Total Work JTD]),
+
+
+
+    #"Sorted Rows1" = Table.Sort(MasterCurves,{{"MC.DATE.Aligned", Order.Ascending}}),
+    #"Reordered Columns1" = Table.ReorderColumns(#"Sorted Rows",{"Bid Pack", "WBS", "Scenario id", "Pay App#", "WBS Desription", "SOV", "Allow & Cont Cost", "Prime COs", "Curr SOV", "From Prev", "WORK This Period", "Stored Mat", "Total Work JTD", "% Comp", "BALANCE", "RETAINAGE", "MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.DATE.Aligned", "MC.DATE", "MC.% ACTUAL.c", "MC.% SCHED.c", "MC.% BL PLAN.c", "MC.% PREDICT.c", "MC.proj id", "$ BL PLAN.M", "$ SCHED.M", "$ SCHEDULE.M", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.Total Work JTD", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.SOV_Table.SAP WBS ", "$ BL PLAN.c", "$ SCHED.c", "$ PREDICT.c"}),
+    #"Changed Type5" = Table.TransformColumnTypes(#"Reordered Columns1",{{"$ BL PLAN.c", type number}}),
+    #"Reordered Columns2" = Table.ReorderColumns(#"Changed Type5",{"Bid Pack", "WBS", "Scenario id", "Pay App#", "WBS Desription", "SOV", "Allow & Cont Cost", "Prime COs", "Curr SOV", "From Prev", "WORK This Period", "Stored Mat", "Total Work JTD", "% Comp", "BALANCE", "RETAINAGE", "MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.DATE.Aligned", "MC.DATE", "MC.% ACTUAL.c", "MC.% SCHED.c", "MC.% BL PLAN.c", "MC.% PREDICT.c", "MC.proj id", "$ BL PLAN.M", "$ BL PLAN.c", "$ SCHED.M", "$ SCHEDULE.M", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.Total Work JTD", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.SOV_Table.SAP WBS ", "$ SCHED.c", "$ PREDICT.c"}),
+    #"Changed Type6" = Table.TransformColumnTypes(#"Reordered Columns2",{{"$ PREDICT.c", type number}}),
+    #"Rounded Off" = Table.TransformColumns(#"Changed Type6",{{"MC.% SCHED.c", each Number.Round(_, 4), type number}}),
+    #"Rounded Off1" = Table.TransformColumns(#"Rounded Off",{{"MC.% ACTUAL.c", each Number.Round(_, 4), type number}}),
+    #"Reordered Columns3" = Table.ReorderColumns(#"Rounded Off1",{"Bid Pack", "WBS", "Scenario id", "Pay App#", "WBS Desription", "SOV", "Allow & Cont Cost", "Prime COs", "Curr SOV", "From Prev", "WORK This Period", "Stored Mat", "Total Work JTD", "% Comp", "BALANCE", "RETAINAGE", "MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.% ACTUAL.c", "MC.DATE", "MC.DATE.Aligned", "MC.% BL PLAN.c", "MC.% SCHED.c", "MC.% PREDICT.c", "$ BL PLAN.M", "$ BL PLAN.c", "$ SCHED.c", "$ PREDICT.c", "$ SCHED.M", "$ SCHEDULE.M", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.Total Work JTD", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.proj id", "MC.SOV_Table.SAP WBS "}),
+    #"Added Conditional Column" = Table.AddColumn(#"Reordered Columns3", "$ SCHEDULE.c", each if [#"MC.% ACTUAL.c"] = [#"MC.% SCHED.c"] then [MC.SOV_Table.Total Work JTD] else [#"$ SCHED.c"]),
+    #"Changed Type7" = Table.TransformColumnTypes(#"Added Conditional Column",{{"$ SCHEDULE.c", type number}}),
+    #"Reordered Columns4" = Table.ReorderColumns(#"Changed Type7",{"Bid Pack", "WBS", "Scenario id", "Pay App#", "WBS Desription", "SOV", "Allow & Cont Cost", "Prime COs", "Curr SOV", "From Prev", "WORK This Period", "Stored Mat", "Total Work JTD", "% Comp", "BALANCE", "RETAINAGE", "MC.cost.id", "MC.scenarioid", "MC.WBS Element Description", "MC.WBS Element", "MC.% ACTUAL.M", "MC.% SCHEDULE.M", "MC.% SCHED.M", "MC.% BL PLAN.M", "MC.% ACTUAL.c", "MC.DATE", "MC.DATE.Aligned", "MC.% BL PLAN.c", "MC.% SCHED.c", "MC.% PREDICT.c", "$ BL PLAN.M", "$ BL PLAN.c", "$ SCHED.c", "$ SCHEDULE.c", "MC.proj id", "MC.SOV_Table.Total Work JTD", "$ PREDICT.c", "$ SCHED.M", "$ SCHEDULE.M", "MC.SOV_Table.WORK This Period", "MC.SOV_Table.% Comp", "MC.SOV_Table.BALANCE", "MC.SOV_Table.SAP WBS "})
+ in
+     #"Reordered Columns4"
+     
